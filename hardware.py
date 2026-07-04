@@ -32,8 +32,27 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Stock Report")
-    df = pd.DataFrame([{"ID": k, **v} for k, v in st.session_state.data["stock"].items() if v["cat"] == selected_cat])
-    if not df.empty: st.dataframe(df, use_container_width=True)
+  if not st.session_state.data["stock"]:
+        st.write("No products in stock.")
+    else:
+        # Stock report table
+        stock_list = []
+        for p_id, p_info in st.session_state.data["stock"].items():
+            item = {"ID": p_id, **p_info}
+            stock_list.append(item)
+        
+        df = pd.DataFrame(stock_list)
+        st.dataframe(df, use_container_width=True)
+        
+        # Delete Product section
+        st.write("---")
+        st.subheader("Delete Product")
+        del_id = st.selectbox("Select Product ID to Delete:", options=list(st.session_state.data["stock"].keys()), format_func=lambda x: f"{x}: {st.session_state.data['stock'][x]['name']}")
+        
+        if st.button("Delete This Product"):
+            del st.session_state.data["stock"][del_id]
+            save_data()
+            st.rerun() 
 
 with tab2:
     st.subheader("Sale Entry")

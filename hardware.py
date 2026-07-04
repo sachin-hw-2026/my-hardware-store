@@ -5,7 +5,6 @@ import os
 
 DATA_FILE = "dukan_data.json"
 
-# Data load aur save ka logic
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -27,12 +26,11 @@ st.title(f"Category: {selected_cat}")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"])
 
-# TAB 1: Stock Report (Fixed)
+# TAB 1: Stock Report (Corrected with Sr. No.)
 with tab1:
     st.subheader("Stock Report")
     all_stock = st.session_state.data.get("stock", {})
     
-    # Filter hataya nahi hai, par logic correct kiya hai
     stock_list = []
     i = 1
     for p_id, p_info in all_stock.items():
@@ -54,11 +52,14 @@ with tab1:
         st.write(f"No products in {selected_cat}.")
     else:
         df = pd.DataFrame(stock_list)
+        # index=False taaki extra numbers na aayein aur Sr. No. column dikhe
         st.table(df.set_index("Sr. No."))
         
         st.write("---")
         st.subheader("Delete Product")
-        del_id = st.selectbox("Select Product to Delete:", options=list(all_stock.keys()), format_func=lambda x: f"{all_stock[x]['name']} (ID: {x})")
+        # Sirf isi category ke items dikhenge
+        cat_items = {k: v for k, v in all_stock.items() if v.get("cat") == selected_cat}
+        del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: f"{cat_items[x]['name']} (ID: {x})")
         if st.button("Delete This Product"):
             del st.session_state.data["stock"][del_id]
             save_data()
@@ -67,7 +68,7 @@ with tab1:
 # TAB 2: Sale Entry
 with tab2:
     st.subheader("Sale Entry")
-    cat_prods = {k: v for k, v in st.session_state.data["stock"].items() if v["cat"] == selected_cat}
+    cat_prods = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
     if not cat_prods:
         st.write("No products to sell.")
     else:
@@ -89,6 +90,8 @@ with tab3:
             profit_data.append({"Product": p_info["name"], "Profit": profit})
     if profit_data:
         st.table(pd.DataFrame(profit_data))
+    else:
+        st.write("No sales data available.")
 
 # TAB 4: Add New Product
 with tab4:

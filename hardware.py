@@ -3,10 +3,9 @@ import pandas as pd
 import json
 import os
 
-st.set_page_config(page_title="Hardware Inventory System", layout="wide")
-
 DATA_FILE = "dukan_data.json"
 
+# Data load aur save ka logic
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
@@ -26,24 +25,20 @@ selected_cat = st.sidebar.radio("Select Category:", categories)
 
 st.title(f"Category: {selected_cat}")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"
-])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"])
 
+# TAB 1: Stock Report (Fixed)
 with tab1:
     st.subheader("Stock Report")
     all_stock = st.session_state.data.get("stock", {})
     
-    if not all_stock:
-        st.write("No products in stock.")
-    else:
-        # Business ke hisaab se saare columns ka list
-        stock_list = []
-        for i, (p_id, p_info) in enumerate(all_stock.items(), 1):
+    # Filter hataya nahi hai, par logic correct kiya hai
+    stock_list = []
+    i = 1
+    for p_id, p_info in all_stock.items():
+        if p_info.get("cat") == selected_cat:
             total = int(p_info.get("total", 0))
             sold = int(p_info.get("sold", 0))
-            remaining = total - sold
-            
             stock_list.append({
                 "Sr. No.": i,
                 "Product Name": p_info.get("name", ""),
@@ -51,43 +46,51 @@ with tab1:
                 "Retail Price": p_info.get("retail", 0),
                 "Total Quantity": total,
                 "Sold Quantity": sold,
-                "Remaining Quantity": remaining
+                "Remaining Quantity": total - sold
             })
-        
+            i += 1
+            
+    if not stock_list:
+        st.write(f"No products in {selected_cat}.")
+    else:
         df = pd.DataFrame(stock_list)
-        
-        # Sr. No. ko index bana kar table display karna taaki extra numbers na aayein
         st.table(df.set_index("Sr. No."))
         
-        # Delete section
         st.write("---")
         st.subheader("Delete Product")
-        del_id = st.selectbox(
-            "Select Product to Delete:", 
-            options=list(all_stock.keys()), 
-            format_func=lambda x: f"{all_stock[x]['name']} (ID: {x})"
-        )
-        
+        del_id = st.selectbox("Select Product to Delete:", options=list(all_stock.keys()), format_func=lambda x: f"{all_stock[x]['name']} (ID: {x})")
         if st.button("Delete This Product"):
             del st.session_state.data["stock"][del_id]
             save_data()
             st.rerun()
-    with tab2:
+
+# TAB 2: Sale Entry
+with tab2:
     st.subheader("Sale Entry")
     cat_prods = {k: v for k, v in st.session_state.data["stock"].items() if v["cat"] == selected_cat}
-    p_id = st.selectbox("Select Product:", options=list(cat_prods.keys()), format_func=lambda x: cat_prods[x]["name"])
-    qty = st.number_input("Quantity Sold:", min_value=1)
-    if st.button("Confirm Sale"):
-        st.session_state.data["stock"][p_id]["sold"] += qty
-        save_data()
-        st.success("Sale Recorded.")
+    if not cat_prods:
+        st.write("No products to sell.")
+    else:
+        p_id = st.selectbox("Select Product:", options=list(cat_prods.keys()), format_func=lambda x: cat_prods[x]['name'])
+        qty = st.number_input("Quantity Sold:", min_value=1)
+        if st.button("Confirm Sale"):
+            st.session_state.data["stock"][p_id]["sold"] = int(st.session_state.data["stock"][p_id].get("sold", 0)) + qty
+            save_data()
+            st.success("Sale Recorded.")
+            st.rerun()
 
+# TAB 3: Profit & Loss
 with tab3:
     st.subheader("Profit & Loss")
-    profit_data = [{"Name": v["name"], "Profit": (v["retail"] - v["wholesale"]) * v["sold"]} 
-                   for k, v in st.session_state.data["stock"].items() if v["cat"] == selected_cat]
-    st.table(pd.DataFrame(profit_data))
+    profit_data = []
+    for p_id, p_info in st.session_state.data["stock"].items():
+        if p_info.get("cat") == selected_cat:
+            profit = (int(p_info.get("retail", 0)) - int(p_info.get("wholesale", 0))) * int(p_info.get("sold", 0))
+            profit_data.append({"Product": p_info["name"], "Profit": profit})
+    if profit_data:
+        st.table(pd.DataFrame(profit_data))
 
+# TAB 4: Add New Product
 with tab4:
     st.subheader("Add New Product")
     with st.form("add_prod"):
@@ -100,27 +103,21 @@ with tab4:
             st.session_state.data["stock"][new_id] = {"name": name, "cat": selected_cat, "wholesale": ws, "retail": ret, "total": qty, "sold": 0}
             save_data()
             st.success("Product Added.")
+            st.rerun()
 
+# TAB 5: Product Demand Book
 with tab5:
     st.subheader("Product Demand Book")
-   # Entry add karne ka form
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        d_name = st.text_input("Product Name:")
-    with col2:
-        d_qty = st.number_input("Qty:", min_value=1)
-    
+    d_name = st.text_input("Product Name:")
+    d_qty = st.number_input("Qty:", min_value=1)
     if st.button("Add to Demand"):
         st.session_state.data["demands"].append({"Product": d_name, "Quantity": d_qty})
         save_data()
-        st.rerun() 
-    
-    # Demand list dikhana aur Delete button lagana
-    st.write("---")
+        st.rerun()
     if st.session_state.data["demands"]:
         for i, item in enumerate(st.session_state.data["demands"]):
             c1, c2, c3 = st.columns([2, 1, 1])
-            c1.write(f"{item['Product']}")
+            c1.write(item['Product'])
             c2.write(f"Qty: {item['Quantity']}")
             if c3.button("Delete", key=f"del_{i}"):
                 del st.session_state.data["demands"][i]

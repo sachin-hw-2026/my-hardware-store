@@ -69,10 +69,18 @@ with tab4:
         qty = st.number_input("Initial Stock:", min_value=0)
         
         if st.form_submit_button("Submit"):
-            # Unique ID creation (Timestamp based to avoid overwrite)
-            new_id = str(len(st.session_state.data["stock"]) + 1000) 
+            # Sabhi products jo isi category ke hain, unka ID check karo
+            cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
             
-            # Data update
+            if cat_items:
+                # Us category mein jo max ID hai, usme +1 karo
+                existing_ids = [int(k) for k in cat_items.keys()]
+                new_id = str(max(existing_ids) + 1)
+            else:
+                # Agar category khaali hai, toh 1 se shuru karo
+                new_id = "1"
+            
+            # Data save karo
             st.session_state.data["stock"][new_id] = {
                 "name": name, 
                 "cat": selected_cat, 

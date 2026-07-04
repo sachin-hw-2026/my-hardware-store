@@ -8,10 +8,8 @@ DATA_FILE = "dukan_data.json"
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except:
-                return {"stock": {}, "demands": []}
+            try: return json.load(f)
+            except: return {"stock": {}, "demands": []}
     return {"stock": {}, "demands": []}
 
 def save_data():
@@ -29,13 +27,10 @@ st.title(f"Category: {selected_cat}")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"])
 
-# TAB 1: Stock Report
+# TAB 1: Stock Report (Aapka confirmed code)
 with tab1:
     st.subheader("Stock Report")
-    # Sabse pehle latest data fetch karo
     stock_dict = st.session_state.data.get("stock", {})
-    
-    # Filter by category
     cat_items = {k: v for k, v in stock_dict.items() if v.get("cat") == selected_cat}
     
     if not cat_items:
@@ -54,12 +49,50 @@ with tab1:
                 "Sold Quantity": sold,
                 "Remaining Quantity": total - sold
             })
-        
         df = pd.DataFrame(stock_list)
-        # Table display
         st.table(df.set_index("Sr. No."))
+        
+        st.write("---")
+        st.subheader("Delete Product")
+        cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
+        del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: f"{cat_items[x]['name']} (ID: {x})")
+        if st.button("Delete This Product"):
+            if del_id in st.session_state.data["stock"]:
+                del st.session_state.data["stock"][del_id]
+                save_data()
+                st.rerun()
 
-# TAB 4: Add New Product
+# TAB 2: Sale Entry (New)
+with tab2:
+    st.subheader("Sale Entry")
+    cat_prods = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
+    if not cat_prods:
+        st.write("No products available to sell.")
+    else:
+        p_id = st.selectbox("Select Product:", options=list(cat_prods.keys()), format_func=lambda x: cat_prods[x]['name'])
+        qty = st.number_input("Quantity Sold:", min_value=1)
+        if st.button("Confirm Sale"):
+            st.session_state.data["stock"][p_id]["sold"] = int(st.session_state.data["stock"][p_id].get("sold", 0)) + qty
+            save_data()
+            st.success("Sale Recorded Successfully!")
+            st.rerun()
+
+# TAB 3: Profit & Loss (New)
+with tab3:
+    st.subheader("Profit & Loss")
+    cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
+    profit_data = []
+    for p_id, p_info in cat_items.items():
+        sold = int(p_info.get("sold", 0))
+        if sold > 0:
+            profit = (float(p_info.get("retail", 0)) - float(p_info.get("wholesale", 0))) * sold
+            profit_data.append({"Product": p_info['name'], "Profit": profit})
+    if profit_data:
+        st.table(pd.DataFrame(profit_data))
+    else:
+        st.write("No sales data available.")
+
+# TAB 4: Add New Product (Aapka confirmed code)
 with tab4:
     st.subheader("Add New Product")
     with st.form("add_prod", clear_on_submit=True):
@@ -69,38 +102,28 @@ with tab4:
         qty = st.number_input("Initial Stock:", min_value=0)
         
         if st.form_submit_button("Submit"):
-            # Sabhi products jo isi category ke hain, unka ID check karo
             cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
-            
             if cat_items:
-                # Us category mein jo max ID hai, usme +1 karo
                 existing_ids = [int(k) for k in cat_items.keys()]
                 new_id = str(max(existing_ids) + 1)
             else:
-                # Agar category khaali hai, toh 1 se shuru karo
                 new_id = "1"
-            
-            # Data save karo
-            st.session_state.data["stock"][new_id] = {
-                "name": name, 
-                "cat": selected_cat, 
-                "wholesale": ws, 
-                "retail": ret, 
-                "total": qty, 
-                "sold": 0
-            }
+            st.session_state.data["stock"][new_id] = {"name": name, "cat": selected_cat, "wholesale": ws, "retail": ret, "total": qty, "sold": 0}
             save_data()
             st.success(f"Added {name} to {selected_cat}!")
             st.rerun()
 
-# Delete Logic (Add to Tab 1)
-with tab1:
-    st.write("---")
-    st.subheader("Delete Product")
-    cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
-    del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: f"{cat_items[x]['name']} (ID: {x})")
-    if st.button("Delete This Product"):
-        if del_id in st.session_state.data["stock"]:
-            del st.session_state.data["stock"][del_id]
+# TAB 5: Product Demand Book (New)
+with tab5:
+    st.subheader("Product Demand Book")
+    with st.form("demand_form", clear_on_submit=True):
+        d_name = st.text_input("Product Name:")
+        d_qty = st.number_input("Qty Needed:", min_value=1)
+        if st.form_submit_button("Add to Demand"):
+            st.session_state.data["demands"].append({"name": d_name, "qty": d_qty, "cat": selected_cat})
             save_data()
             st.rerun()
+    
+    cat_demands = [d for d in st.session_state.data["demands"] if d.get("cat") == selected_cat]
+    for i, item in enumerate(cat_demands):
+        st.write(f"{i+1}. {item['name']} - Qty: {item['qty']}")

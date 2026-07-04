@@ -32,13 +32,13 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Stock Report")
-  if not st.session_state.data["stock"]:
+    if not st.session_state.data["stock"]:
         st.write("No products in stock.")
     else:
-        # Stock report table
+        # Stock report table with Serial Number
         stock_list = []
-        for p_id, p_info in st.session_state.data["stock"].items():
-            item = {"ID": p_id, **p_info}
+        for i, (p_id, p_info) in enumerate(st.session_state.data["stock"].items(), 1):
+            item = {"Sr. No.": i, "ID": p_id, **p_info}
             stock_list.append(item)
         
         df = pd.DataFrame(stock_list)
@@ -47,12 +47,17 @@ with tab1:
         # Delete Product section
         st.write("---")
         st.subheader("Delete Product")
-        del_id = st.selectbox("Select Product ID to Delete:", options=list(st.session_state.data["stock"].keys()), format_func=lambda x: f"{x}: {st.session_state.data['stock'][x]['name']}")
+        # Dropdown mein product name dikhega, par backend mein ID delete hogi
+        del_id = st.selectbox(
+            "Select Product to Delete:", 
+            options=list(st.session_state.data["stock"].keys()), 
+            format_func=lambda x: f"{st.session_state.data['stock'][x]['name']} (ID: {x})"
+        )
         
         if st.button("Delete This Product"):
             del st.session_state.data["stock"][del_id]
             save_data()
-            st.rerun() 
+            st.rerun()
 
 with tab2:
     st.subheader("Sale Entry")

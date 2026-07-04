@@ -32,47 +32,47 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Stock Report")
-    # Session state se data uthana
     all_stock = st.session_state.data.get("stock", {})
     
     if not all_stock:
         st.write("No products in stock.")
     else:
-        # Business columns define karna
+        # Business ke hisaab se saare columns ka list
         stock_list = []
         for i, (p_id, p_info) in enumerate(all_stock.items(), 1):
-            item = {
+            total = int(p_info.get("total", 0))
+            sold = int(p_info.get("sold", 0))
+            remaining = total - sold
+            
+            stock_list.append({
                 "Sr. No.": i,
                 "Product Name": p_info.get("name", ""),
                 "Wholesale Price": p_info.get("wholesale", 0),
                 "Retail Price": p_info.get("retail", 0),
-                "Total Qty": p_info.get("total_qty", 0),
-                "Sold Qty": p_info.get("sold_qty", 0),
-                "Remaining Qty": p_info.get("remaining_qty", 0)
-            }
-            stock_list.append(item)
+                "Total Quantity": total,
+                "Sold Quantity": sold,
+                "Remaining Quantity": remaining
+            })
         
         df = pd.DataFrame(stock_list)
         
-        # Table show karna bina index ke
+        # Sr. No. ko index bana kar table display karna taaki extra numbers na aayein
         st.table(df.set_index("Sr. No."))
         
-        # Delete section for duplicate/error correction
+        # Delete section
         st.write("---")
-        st.subheader("Correction: Delete Product")
-        
-        # Product list dikhana delete karne ke liye
+        st.subheader("Delete Product")
         del_id = st.selectbox(
-            "Select Product to Remove:", 
+            "Select Product to Delete:", 
             options=list(all_stock.keys()), 
             format_func=lambda x: f"{all_stock[x]['name']} (ID: {x})"
         )
         
-        if st.button("Delete Selected Product"):
+        if st.button("Delete This Product"):
             del st.session_state.data["stock"][del_id]
-            save_data() # Ye function aapke data ko file mein save karega
+            save_data()
             st.rerun()
-with tab2:
+    with tab2:
     st.subheader("Sale Entry")
     cat_prods = {k: v for k, v in st.session_state.data["stock"].items() if v["cat"] == selected_cat}
     p_id = st.selectbox("Select Product:", options=list(cat_prods.keys()), format_func=lambda x: cat_prods[x]["name"])

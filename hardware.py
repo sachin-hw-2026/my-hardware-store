@@ -32,26 +32,29 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Stock Report")
-    if not st.session_state.data["stock"]:
-        st.write("No products in stock.")
+    # Filter: Sirf select ki gayi category ka data nikalna
+    filtered_data = {k: v for k, v in st.session_state.data["stock"].items() if v["cat"] == selected_cat}
+    
+    if not filtered_data:
+        st.write(f"No products in {selected_cat}.")
     else:
-        # Stock report table with Serial Number
+        # Table banane ka logic
         stock_list = []
-        for i, (p_id, p_info) in enumerate(st.session_state.data["stock"].items(), 1):
+        for i, (p_id, p_info) in enumerate(filtered_data.items(), 1):
             item = {"Sr. No.": i, "ID": p_id, **p_info}
             stock_list.append(item)
         
         df = pd.DataFrame(stock_list)
-        st.dataframe(df, use_container_width=True)
+        # index=False karne se wo left side wali 0,1,2 numbering hat jayegi
+        st.table(df.set_index("Sr. No.")) 
         
         # Delete Product section
         st.write("---")
         st.subheader("Delete Product")
-        # Dropdown mein product name dikhega, par backend mein ID delete hogi
         del_id = st.selectbox(
             "Select Product to Delete:", 
-            options=list(st.session_state.data["stock"].keys()), 
-            format_func=lambda x: f"{st.session_state.data['stock'][x]['name']} (ID: {x})"
+            options=list(filtered_data.keys()), 
+            format_func=lambda x: f"{filtered_data[x]['name']} (ID: {x})"
         )
         
         if st.button("Delete This Product"):

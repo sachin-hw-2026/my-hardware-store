@@ -5,17 +5,22 @@ import os
 
 DATA_FILE = "dukan_data.json"
 
+# 1. Load Data with safety check
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            try: return json.load(f)
-            except: return {"stock": {}, "demands": []}
+        try:
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Error loading file: {e}")
     return {"stock": {}, "demands": []}
 
-def save_data():
+# 2. Save Data directly to file
+def save_data(data):
     with open(DATA_FILE, "w") as f:
-        json.dump(st.session_state.data, f, indent=4)
+        json.dump(data, f, indent=4)
 
+# Session state initialization
 if "data" not in st.session_state:
     st.session_state.data = load_data()
 
@@ -24,17 +29,16 @@ categories = ["General Hardware", "Plumbing", "Sanitary", "Paints", "Agriculture
 selected_cat = st.sidebar.radio("Select Category:", categories)
 
 st.title(f"Category: {selected_cat}")
-
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"])
 
-# TAB 1: Stock Report (Aapka confirmed code)
+# TAB 1: Stock Report (Read-only view)
 with tab1:
     st.subheader("Stock Report")
     stock_dict = st.session_state.data.get("stock", {})
     cat_items = {k: v for k, v in stock_dict.items() if v.get("cat") == selected_cat}
     
     if not cat_items:
-        st.write(f"No products in {selected_cat}.")
+        st.write("No products found.")
     else:
         stock_list = []
         for idx, (p_id, p_info) in enumerate(cat_items.items(), 1):
@@ -43,25 +47,19 @@ with tab1:
             stock_list.append({
                 "Sr. No.": idx,
                 "Product Name": p_info.get("name", ""),
-                "Wholesale Price": p_info.get("wholesale", 0),
-                "Retail Price": p_info.get("retail", 0),
-                "Total Quantity": total,
-                "Sold Quantity": sold,
-                "Remaining Quantity": total - sold
+                "Wholesale": p_info.get("wholesale", 0),
+                "Retail": p_info.get("retail", 0),
+                "Total": total, "Sold": sold, "Remaining": total - sold
             })
-        df = pd.DataFrame(stock_list)
-        st.table(df.set_index("Sr. No."))
-        
-        st.write("---")
-        st.subheader("Delete Product")
-        cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
-        del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: f"{cat_items[x]['name']} (ID: {x})")
-        if st.button("Delete This Product"):
-            if del_id in st.session_state.data["stock"]:
-                del st.session_state.data["stock"][del_id]
-                save_data()
-                st.rerun()
+        st.table(pd.DataFrame(stock_list).set_index("Sr. No."))
 
+    st.write("---")
+    st.subheader("Delete Product")
+    del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: cat_items[x]['name'])
+    if st.button("Confirm Delete"):
+        del st.session_state.data["stock"][del_id]
+        save_data(st.session_state.data)
+        st.rerun()
 # TAB 2: Sale Entry (New)
 with tab2:
     st.subheader("Sale Entry")
@@ -102,17 +100,24 @@ with tab4:
         qty = st.number_input("Initial Stock:", min_value=0)
         
         if st.form_submit_button("Submit"):
-            cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
-            if cat_items:
-                existing_ids = [int(k) for k in cat_items.keys()]
-                new_id = str(max(existing_ids) + 1)
-            else:
-                new_id = "1"
-            st.session_state.data["stock"][new_id] = {"name": name, "cat": selected_cat, "wholesale": ws, "retail": ret, "total": qty, "sold": 0}
-            save_data()
-            st.success(f"Added {name} to {selected_cat}!")
+            # Sabse pehle file se latest data load karo (Overwrite se bachne ke liye)
+            current_data = load_data()
+            
+            # New ID calculation
+            all_keys = [int(k) for k in current_data["stock"].keys()]
+            new_id = str(max(all_keys) + 1) if all_keys else "1"
+            
+            # Data update
+            current_data["stock"][new_id] = {
+                "name": name, "cat": selected_cat, "wholesale": ws, 
+                "retail": ret, "total": qty, "sold": 0
+            }
+            
+            # Save and update session
+            save_data(current_data)
+            st.session_state.data = current_data
+            st.success("Product Added!")
             st.rerun()
-
 # TAB 5: Product Demand Book (New)
 with tab5:
     st.subheader("Product Demand Book")

@@ -18,23 +18,12 @@ def save_data():
 if "data" not in st.session_state:
     st.session_state.data = load_data()
 
-st.sidebar.title("Categories")
-categories = ["General Hardware", "Plumbing", "Sanitary", "Paints", "Agriculture"]
-selected_cat = st.sidebar.radio("Select Category:", categories)
-
-st.title(f"Category: {selected_cat}")
-
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"])
-
-# TAB 1: Stock Report (Corrected with Sr. No.)
-with tab1:
-    st.subheader("Stock Report")
-    all_stock = st.session_state.data.get("stock", {})
-    
+# Helper function to generate clean table for any category
+def get_stock_df(category):
     stock_list = []
     i = 1
-    for p_id, p_info in all_stock.items():
-        if p_info.get("cat") == selected_cat:
+    for p_id, p_info in st.session_state.data["stock"].items():
+        if p_info.get("cat") == category:
             total = int(p_info.get("total", 0))
             sold = int(p_info.get("sold", 0))
             stock_list.append({
@@ -47,18 +36,28 @@ with tab1:
                 "Remaining Quantity": total - sold
             })
             i += 1
-            
-    if not stock_list:
+    return pd.DataFrame(stock_list)
+
+st.sidebar.title("Categories")
+categories = ["General Hardware", "Plumbing", "Sanitary", "Paints", "Agriculture"]
+selected_cat = st.sidebar.radio("Select Category:", categories)
+
+st.title(f"Category: {selected_cat}")
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & Loss", "Add New Product", "Product Demand Book"])
+
+# TAB 1: Stock Report
+with tab1:
+    st.subheader("Stock Report")
+    df = get_stock_df(selected_cat)
+    if df.empty:
         st.write(f"No products in {selected_cat}.")
     else:
-        df = pd.DataFrame(stock_list)
-        # index=False taaki extra numbers na aayein aur Sr. No. column dikhe
         st.table(df.set_index("Sr. No."))
         
         st.write("---")
         st.subheader("Delete Product")
-        # Sirf isi category ke items dikhenge
-        cat_items = {k: v for k, v in all_stock.items() if v.get("cat") == selected_cat}
+        cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
         del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: f"{cat_items[x]['name']} (ID: {x})")
         if st.button("Delete This Product"):
             del st.session_state.data["stock"][del_id]
@@ -83,15 +82,12 @@ with tab2:
 # TAB 3: Profit & Loss
 with tab3:
     st.subheader("Profit & Loss")
-    profit_data = []
-    for p_id, p_info in st.session_state.data["stock"].items():
-        if p_info.get("cat") == selected_cat:
-            profit = (int(p_info.get("retail", 0)) - int(p_info.get("wholesale", 0))) * int(p_info.get("sold", 0))
-            profit_data.append({"Product": p_info["name"], "Profit": profit})
-    if profit_data:
-        st.table(pd.DataFrame(profit_data))
+    df = get_stock_df(selected_cat)
+    if not df.empty:
+        df["Profit"] = (df["Retail Price"] - df["Wholesale Price"]) * df["Sold Quantity"]
+        st.table(df[["Product Name", "Profit"]].set_index("Product Name"))
     else:
-        st.write("No sales data available.")
+        st.write("No sales data.")
 
 # TAB 4: Add New Product
 with tab4:

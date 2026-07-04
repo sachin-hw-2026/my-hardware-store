@@ -66,14 +66,26 @@ with tab4:
 
 with tab5:
     st.subheader("Product Demand Book")
-    d_name = st.text_input("Product Name:")
-    d_qty = st.number_input("Quantity Requested:", min_value=1)
+   # Entry add karne ka form
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        d_name = st.text_input("Product Name:")
+    with col2:
+        d_qty = st.number_input("Qty:", min_value=1)
+    
     if st.button("Add to Demand"):
         st.session_state.data["demands"].append({"Product": d_name, "Quantity": d_qty})
         save_data()
+        st.rerun() 
     
-    demand_df = pd.DataFrame(st.session_state.data["demands"])
-    if not demand_df.empty:
-        # Descending Sort (Highest to Lowest)
-        demand_df = demand_df.sort_values(by="Quantity", ascending=False)
-        st.table(demand_df)
+    # Demand list dikhana aur Delete button lagana
+    st.write("---")
+    if st.session_state.data["demands"]:
+        for i, item in enumerate(st.session_state.data["demands"]):
+            c1, c2, c3 = st.columns([2, 1, 1])
+            c1.write(f"{item['Product']}")
+            c2.write(f"Qty: {item['Quantity']}")
+            if c3.button("Delete", key=f"del_{i}"):
+                del st.session_state.data["demands"][i]
+                save_data()
+                st.rerun()

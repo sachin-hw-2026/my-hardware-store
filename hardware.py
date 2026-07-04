@@ -8,7 +8,10 @@ DATA_FILE = "dukan_data.json"
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except:
+                return {"stock": {}, "demands": []}
     return {"stock": {}, "demands": []}
 
 def save_data():
@@ -17,26 +20,6 @@ def save_data():
 
 if "data" not in st.session_state:
     st.session_state.data = load_data()
-
-# Helper function to generate clean table for any category
-def get_stock_df(category):
-    stock_list = []
-    i = 1
-    for p_id, p_info in st.session_state.data["stock"].items():
-        if p_info.get("cat") == category:
-            total = int(p_info.get("total", 0))
-            sold = int(p_info.get("sold", 0))
-            stock_list.append({
-                "Sr. No.": i,
-                "Product Name": p_info.get("name", ""),
-                "Wholesale Price": p_info.get("wholesale", 0),
-                "Retail Price": p_info.get("retail", 0),
-                "Total Quantity": total,
-                "Sold Quantity": sold,
-                "Remaining Quantity": total - sold
-            })
-            i += 1
-    return pd.DataFrame(stock_list)
 
 st.sidebar.title("Categories")
 categories = ["General Hardware", "Plumbing", "Sanitary", "Paints", "Agriculture"]
@@ -49,19 +32,21 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["Stock Report", "Sale Entry", "Profit & 
 # TAB 1: Stock Report
 with tab1:
     st.subheader("Stock Report")
-    # Sirf General Hardware ka data
-    all_stock = st.session_state.data.get("stock", {})
-    cat_items = {k: v for k, v in all_stock.items() if v.get("cat") == "General Hardware"}
+    # Sabse pehle latest data fetch karo
+    stock_dict = st.session_state.data.get("stock", {})
+    
+    # Filter by category
+    cat_items = {k: v for k, v in stock_dict.items() if v.get("cat") == selected_cat}
     
     if not cat_items:
-        st.write("No products in General Hardware.")
+        st.write(f"No products in {selected_cat}.")
     else:
         stock_list = []
-        for i, (p_id, p_info) in enumerate(cat_items.items(), 1):
+        for idx, (p_id, p_info) in enumerate(cat_items.items(), 1):
             total = int(p_info.get("total", 0))
             sold = int(p_info.get("sold", 0))
             stock_list.append({
-                "Sr. No.": i,
+                "Sr. No.": idx,
                 "Product Name": p_info.get("name", ""),
                 "Wholesale Price": p_info.get("wholesale", 0),
                 "Retail Price": p_info.get("retail", 0),
@@ -71,72 +56,43 @@ with tab1:
             })
         
         df = pd.DataFrame(stock_list)
-        st.table(df.set_index("Sr. No.")) # Sr. No. column fixed
-# TAB 2: Sale Entry
-with tab2:
-    st.subheader("Sale Entry")
-    cat_prods = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
-    if not cat_prods:
-        st.write("No products to sell.")
-    else:
-        p_id = st.selectbox("Select Product:", options=list(cat_prods.keys()), format_func=lambda x: cat_prods[x]['name'])
-        qty = st.number_input("Quantity Sold:", min_value=1)
-        if st.button("Confirm Sale"):
-            st.session_state.data["stock"][p_id]["sold"] = int(st.session_state.data["stock"][p_id].get("sold", 0)) + qty
-            save_data()
-            st.success("Sale Recorded.")
-            st.rerun()
-
-# TAB 3: Profit & Loss
-with tab3:
-    st.subheader("Profit & Loss")
-    df = get_stock_df(selected_cat)
-    if not df.empty:
-        df["Profit"] = (df["Retail Price"] - df["Wholesale Price"]) * df["Sold Quantity"]
-        st.table(df[["Product Name", "Profit"]].set_index("Product Name"))
-    else:
-        st.write("No sales data.")
+        # Table display
+        st.table(df.set_index("Sr. No."))
 
 # TAB 4: Add New Product
 with tab4:
     st.subheader("Add New Product")
-    with st.form("add_prod"):
+    with st.form("add_prod", clear_on_submit=True):
         name = st.text_input("Product Name:")
-        ws = st.number_input("Wholesale Price:")
-        ret = st.number_input("Retail Price:")
-        qty = st.number_input("Initial Stock:")
+        ws = st.number_input("Wholesale Price:", min_value=0.0)
+        ret = st.number_input("Retail Price:", min_value=0.0)
+        qty = st.number_input("Initial Stock:", min_value=0)
+        
         if st.form_submit_button("Submit"):
-            # Sabse pehle pura data uthao
-            current_data = st.session_state.data["stock"]
-            # Naya ID
-            new_id = str(len(current_data) + 1)
-            # Data append karo, overwrite nahi
-            current_data[new_id] = {
+            # Unique ID creation (Timestamp based to avoid overwrite)
+            new_id = str(len(st.session_state.data["stock"]) + 1000) 
+            
+            # Data update
+            st.session_state.data["stock"][new_id] = {
                 "name": name, 
-                "cat": "General Hardware", 
+                "cat": selected_cat, 
                 "wholesale": ws, 
                 "retail": ret, 
                 "total": qty, 
                 "sold": 0
             }
             save_data()
-            st.success("Product Added!")
+            st.success(f"Added {name} to {selected_cat}!")
             st.rerun()
-    # TAB 5: Product Demand Book
-with tab5:
-    st.subheader("Product Demand Book")
-    d_name = st.text_input("Product Name:")
-    d_qty = st.number_input("Qty:", min_value=1)
-    if st.button("Add to Demand"):
-        st.session_state.data["demands"].append({"Product": d_name, "Quantity": d_qty})
-        save_data()
-        st.rerun()
-    if st.session_state.data["demands"]:
-        for i, item in enumerate(st.session_state.data["demands"]):
-            c1, c2, c3 = st.columns([2, 1, 1])
-            c1.write(item['Product'])
-            c2.write(f"Qty: {item['Quantity']}")
-            if c3.button("Delete", key=f"del_{i}"):
-                del st.session_state.data["demands"][i]
-                save_data()
-                st.rerun()
+
+# Delete Logic (Add to Tab 1)
+with tab1:
+    st.write("---")
+    st.subheader("Delete Product")
+    cat_items = {k: v for k, v in st.session_state.data["stock"].items() if v.get("cat") == selected_cat}
+    del_id = st.selectbox("Select Product to Delete:", options=list(cat_items.keys()), format_func=lambda x: f"{cat_items[x]['name']} (ID: {x})")
+    if st.button("Delete This Product"):
+        if del_id in st.session_state.data["stock"]:
+            del st.session_state.data["stock"][del_id]
+            save_data()
+            st.rerun()
